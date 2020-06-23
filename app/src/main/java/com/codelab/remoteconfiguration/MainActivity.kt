@@ -2,13 +2,26 @@ package com.codelab.remoteconfiguration
 
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.util.Log
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
+import com.huawei.agconnect.remoteconfig.AGConnectConfig
+import com.huawei.agconnect.remoteconfig.ConfigValues
 import kotlinx.android.synthetic.main.activity_main.*
 
+
+private const val ANIMATION_URL_KEY = "animation_url_key"
+
+private const val ERROR_ANIMATION_JSON = "error.json"
+
+private const val TAG = "MainActivity"
+
 class MainActivity : AppCompatActivity() {
+
+    private lateinit var remoteConfig: AGConnectConfig
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -34,16 +47,42 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initRemoteConfig() {
+        remoteConfig = AGConnectConfig.getInstance()
 
-        // TODO: set up Remote Configuration service
+        val defaultConfigMap = HashMap<String, Any>()
+        defaultConfigMap[ANIMATION_URL_KEY] = ERROR_ANIMATION_JSON
+
+        remoteConfig.applyDefault(defaultConfigMap)
 
         fetchConfig()
     }
 
     private fun fetchConfig() {
-        // TODO: fetch and apply Remote Configuration parameters
+        val cacheExpirationInSeconds = if (BuildConfig.DEBUG) 0 else 3600L
 
+        remoteConfig.fetch(cacheExpirationInSeconds)
+            .addOnSuccessListener {
+                it?.let { configValues ->
+                    remoteConfig.apply(configValues)
+                    applyAnimationFromRemoteConfig(configValues)
+                }
+            }
+            .addOnFailureListener {
+                showErrorLog("Error fetching remote parameter: ${it.localizedMessage}")
+                Log.e(TAG, "Error fetching remote parameter: ", it)
+            }
     }
+
+    private fun applyAnimationFromRemoteConfig(configValues: ConfigValues) {
+        val animationUrl = configValues.getValueAsString(ANIMATION_URL_KEY)
+        if (!animationUrl.isNullOrEmpty()) {
+            hideErrorView()
+            animation_view.setAnimationFromUrl(animationUrl)
+        } else {
+            showErrorLog("animationUrl is empty")
+        }
+    }
+
 
     private fun showErrorLog(errorMessage: String) {
         animation_view.visibility = View.GONE
